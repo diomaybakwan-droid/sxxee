@@ -13,7 +13,7 @@ on:
         - '3h' 
         - '5h40m'
       install_apps:
-        description: '📦 Install Aplikasi'
+        description: '📦 Install Aplikasi (telegram,chrome,vscode,firefox,nodejs,python,discord,spotify)'
         required: false
         default: 'telegram,chrome,vscode'
         type: string
@@ -51,448 +51,189 @@ jobs:
           }
           Write-Host "`r✅ Sistem persistent siap!                    " -ForegroundColor Green
 
-      # KONFIGURASI LANJUTAN
-      - name: 🔧 KONFIGURASI SISTEM
+      # KONFIGURASI RDP
+      - name: 🔧 KONFIGURASI RDP
         run: |
           Write-Host ""
-          Write-Host "🛠️  MENGKONFIGURASI SISTEM PERSISTENT" -ForegroundColor Yellow
+          Write-Host "🛠️  MENGKONFIGURASI RDP" -ForegroundColor Yellow
           
-          $steps = @(
-              @{Name="Aktifkan Remote Desktop"; Script={
-                  Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
-              }},
-              @{Name="Nonaktifkan autentikasi jaringan"; Script={
-                  Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
-              }},
-              @{Name="Konfigurasi keamanan RDP"; Script={
-                  Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 0 -Force
-              }},
-              @{Name="Buka port 3389 firewall"; Script={
-                  netsh advfirewall firewall add rule name="JOHAN-RDP-Permanent" dir=in action=allow protocol=TCP localport=3389 profile=any
-                  netsh advfirewall firewall add rule name="JOHAN-RDP-Permanent-Out" dir=out action=allow protocol=TCP localport=3389 profile=any
-              }},
-              @{Name="Mulai ulang layanan"; Script={
-                  Set-Service -Name TermService -StartupType Automatic -ErrorAction SilentlyContinue
-                  Set-Service -Name UmRdpService -StartupType Automatic -ErrorAction SilentlyContinue
-                  Start-Service -Name TermService -ErrorAction SilentlyContinue
-                  Start-Service -Name UmRdpService -ErrorAction SilentlyContinue
-              }}
-          )
+          # Aktifkan RDP
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 0 -Force
           
-          foreach($step in $steps) {
-              Write-Host "│ 📋 $($step.Name)..." -NoNewline -ForegroundColor White
-              try {
-                  & $step.Script
-                  Write-Host "`r│ ✅ $($step.Name)" -ForegroundColor Green
-              } catch {
-                  Write-Host "`r│ ⚠️  $($step.Name) - Abaikan error kecil" -ForegroundColor Yellow
-              }
-              Start-Sleep -Milliseconds 500
-          }
+          # Firewall
+          netsh advfirewall firewall add rule name="JOHAN-RDP" dir=in action=allow protocol=TCP localport=3389 profile=any
+          netsh advfirewall firewall add rule name="JOHAN-RDP-Out" dir=out action=allow protocol=TCP localport=3389 profile=any
           
-          Write-Host "🎯 Konfigurasi selesai!" -ForegroundColor Green
+          # Service
+          Set-Service -Name TermService -StartupType Automatic
+          Start-Service -Name TermService
+          
+          Write-Host "✅ Konfigurasi RDP selesai!" -ForegroundColor Green
 
-      # BUAT USER JOHAN-RDP DENGAN PASSWORD TETAP
+      # BUAT USER JOHAN-RDP
       - name: 👤 BUAT AKUN JOHAN-RDP
         run: |
           Write-Host ""
-          Write-Host "👤 MEMBUAT AKUN JOHAN-RDP PERMANENT" -ForegroundColor Yellow
+          Write-Host "👤 MEMBUAT AKUN JOHAN-RDP" -ForegroundColor Yellow
           
-          # Gunakan password tetap
           $password = "Shion@1234"
           $securePass = ConvertTo-SecureString $password -AsPlainText -Force
           
           # Hapus user lama jika ada
-          try {
-              Remove-LocalUser -Name "JOHAN-RDP" -ErrorAction SilentlyContinue
-              Write-Host "│ ✅ Hapus user lama" -ForegroundColor Green
-          } catch {
-              Write-Host "│ ℹ️  Tidak ada user lama untuk dihapus" -ForegroundColor Blue
-          }
+          Remove-LocalUser -Name "JOHAN-RDP" -ErrorAction SilentlyContinue
           
-          # Buat user baru dengan hak penuh dan password tetap
-          try {
-              New-LocalUser -Name "JOHAN-RDP" -Password $securePass -AccountNeverExpires -Description "Johan RDP Permanent Account"
-              Write-Host "│ ✅ Buat user baru" -ForegroundColor Green
-              
-              # Set password tidak pernah kadaluarsa
-              Set-LocalUser -Name "JOHAN-RDP" -PasswordNeverExpires $true
-              
-              # Tambahkan ke grup yang diperlukan
-              Add-LocalGroupMember -Group "Administrators" -Member "JOHAN-RDP" -ErrorAction SilentlyContinue
-              Add-LocalGroupMember -Group "Remote Desktop Users" -Member "JOHAN-RDP" -ErrorAction SilentlyContinue
-              Add-LocalGroupMember -Group "Users" -Member "JOHAN-RDP" -ErrorAction SilentlyContinue
-              
-              # Aktifkan user
-              Enable-LocalUser -Name "JOHAN-RDP"
-              
-              Write-Host "│ ✅ Berikan hak Administrator & RDP" -ForegroundColor Green
-              
-          } catch {
-              Write-Host "│ ❌ Error buat user: $($_.Exception.Message)" -ForegroundColor Red
-              exit 1
-          }
+          # Buat user baru
+          New-LocalUser -Name "JOHAN-RDP" -Password $securePass -AccountNeverExpires -Description "Johan RDP Premium"
+          Set-LocalUser -Name "JOHAN-RDP" -PasswordNeverExpires $true
           
-          # Simpan informasi
-          echo "RDP_USER=JOHAN-RDP" >> $env:GITHUB_ENV
-          echo "RDP_PASS=$password" >> $env:GITHUB_ENV
+          # Tambahkan ke grup
+          Add-LocalGroupMember -Group "Administrators" -Member "JOHAN-RDP"
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "JOHAN-RDP"
+          Enable-LocalUser -Name "JOHAN-RDP"
           
-          Write-Host "✅ Akun: JOHAN-RDP siap" -ForegroundColor Green
-          Write-Host "🔐 Password: $password" -ForegroundColor Cyan
+          Write-Host "✅ Akun JOHAN-RDP siap!" -ForegroundColor Green
 
-      # INSTALL APLIKASI CUSTOM
-      - name: 📦 INSTALL APLIKASI YANG DIMINTA
+      # INSTALL APLIKASI
+      - name: 📦 INSTALL APLIKASI
         run: |
           Write-Host ""
-          Write-Host "📦 MENGINSTAL APLIKASI CUSTOM" -ForegroundColor Yellow
+          Write-Host "📦 MENGINSTAL APLIKASI" -ForegroundColor Yellow
           
           $appsToInstall = "${{ github.event.inputs.install_apps }}".ToLower().Split(',')
-          $hostname = "${{ github.event.inputs.custom_hostname }}"
+          Write-Host "Aplikasi yang akan diinstall: $($appsToInstall -join ', ')"
           
-          Write-Host "│ 📋 Daftar aplikasi: $($appsToInstall -join ', ')" -ForegroundColor White
-          
-          # Simpan hostname ke environment
-          echo "CUSTOM_HOSTNAME=$hostname" >> $env:GITHUB_ENV
-          
-          # Dictionary aplikasi dan URL download-nya
-          $appUrls = @{
-              "telegram" = @{
-                  "url" = "https://telegram.org/dl/desktop/win64"
-                  "file" = "tsetup-x64.exe"
-                  "args" = "/S"
-              }
-              "chrome" = @{
-                  "url" = "https://dl.google.com/chrome/install/latest/chrome_installer.exe"
-                  "file" = "chrome_installer.exe"
-                  "args" = "/silent /install"
-              }
-              "vscode" = @{
-                  "url" = "https://code.visualstudio.com/sha/download?build=stable&os=win32-x64"
-                  "file" = "VSCodeSetup.exe"
-                  "args" = "/SILENT /MERGETASKS=!runcode"
-              }
-              "firefox" = @{
-                  "url" = "https://download.mozilla.org/?product=firefox-latest&os=win64&lang=en-US"
-                  "file" = "FirefoxSetup.exe"
-                  "args" = "/S"
-              }
-              "nodejs" = @{
-                  "url" = "https://nodejs.org/dist/v18.17.0/node-v18.17.0-x64.msi"
-                  "file" = "nodejs.msi"
-                  "args" = "/quiet"
-              }
-              "python" = @{
-                  "url" = "https://www.python.org/ftp/python/3.11.4/python-3.11.4-amd64.exe"
-                  "file" = "python-installer.exe"
-                  "args" = "/quiet InstallAllUsers=1 PrependPath=1"
-              }
-              "discord" = @{
-                  "url" = "https://dl.discordapp.net/distro/app/stable/win/x86/1.0.9006/DiscordSetup.exe"
-                  "file" = "DiscordSetup.exe"
-                  "args" = "/S"
-              }
-              "spotify" = @{
-                  "url" = "https://download.scdn.co/SpotifyFullSetup.exe"
-                  "file" = "SpotifySetup.exe"
-                  "args" = "/S"
-              }
-          }
-          
+          # Download dan install aplikasi
           foreach ($app in $appsToInstall) {
-              if ($appUrls.ContainsKey($app.Trim())) {
-                  Write-Host "│ 🔧 Menginstall $app..." -NoNewline -ForegroundColor White
-                  try {
-                      $appInfo = $appUrls[$app.Trim()]
-                      $downloadPath = "$env:TEMP\$($appInfo.file)"
-                      
-                      # Download aplikasi
-                      Invoke-WebRequest -Uri $appInfo.url -OutFile $downloadPath -UserAgent "Mozilla/5.0" -ErrorAction Stop
-                      
-                      # Install aplikasi
-                      if ($appInfo.file -like "*.msi") {
-                          Start-Process msiexec.exe -ArgumentList "/i", "`"$downloadPath`"", $appInfo.args, "/norestart" -Wait -NoNewWindow
-                      } else {
-                          Start-Process $downloadPath -ArgumentList $appInfo.args -Wait -NoNewWindow
-                      }
-                      
-                      # Hapus installer
-                      Remove-Item $downloadPath -Force -ErrorAction SilentlyContinue
-                      
-                      Write-Host "`r│ ✅ $app terinstall" -ForegroundColor Green
-                      
-                  } catch {
-                      Write-Host "`r│ ❌ Gagal install $app" -ForegroundColor Red
+              $app = $app.Trim()
+              Write-Host "Menginstall $app..."
+              
+              switch ($app) {
+                  "telegram" {
+                      Invoke-WebRequest -Uri "https://telegram.org/dl/desktop/win64" -OutFile "$env:TEMP\telegram.exe"
+                      Start-Process "$env:TEMP\telegram.exe" -ArgumentList "/S" -Wait
+                      Remove-Item "$env:TEMP\telegram.exe" -Force
                   }
-                  Start-Sleep -Seconds 2
+                  "chrome" {
+                      Invoke-WebRequest -Uri "https://dl.google.com/chrome/install/latest/chrome_installer.exe" -OutFile "$env:TEMP\chrome.exe"
+                      Start-Process "$env:TEMP\chrome.exe" -ArgumentList "/silent /install" -Wait
+                      Remove-Item "$env:TEMP\chrome.exe" -Force
+                  }
+                  "vscode" {
+                      Invoke-WebRequest -Uri "https://code.visualstudio.com/sha/download?build=stable&os=win32-x64" -OutFile "$env:TEMP\vscode.exe"
+                      Start-Process "$env:TEMP\vscode.exe" -ArgumentList "/SILENT /MERGETASKS=!runcode" -Wait
+                      Remove-Item "$env:TEMP\vscode.exe" -Force
+                  }
+                  "firefox" {
+                      Invoke-WebRequest -Uri "https://download.mozilla.org/?product=firefox-latest&os=win64&lang=en-US" -OutFile "$env:TEMP\firefox.exe"
+                      Start-Process "$env:TEMP\firefox.exe" -ArgumentList "/S" -Wait
+                      Remove-Item "$env:TEMP\firefox.exe" -Force
+                  }
               }
+              Write-Host "✅ $app terinstall"
           }
-          
-          Write-Host "🎯 Installasi aplikasi selesai!" -ForegroundColor Green
 
-      # KONFIGURASI IP STATIC DENGEN HOSTNAME KUSTOM
-      - name: 🌐 SETUP IP KONSISTEN
+      # SETUP TAILSCALE DENGAN HOSTNAME KUSTOM
+      - name: 🌐 SETUP JARINGAN
         env:
           TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
         run: |
           Write-Host ""
-          Write-Host "🌐 SETUP IP KONSISTEN DENGAN HOSTNAME KUSTOM" -ForegroundColor Yellow
+          Write-Host "🌐 SETUP JARINGAN TAILSCALE" -ForegroundColor Yellow
           
           # Install Tailscale
-          try {
-              $msiPath = "$env:TEMP\tailscale-setup.msi"
-              Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi" -OutFile $msiPath
-              Start-Process msiexec.exe -ArgumentList "/i", "`"$msiPath`"", "/quiet", "/norestart" -Wait
-              Remove-Item $msiPath -Force -ErrorAction SilentlyContinue
-              Write-Host "│ ✅ Install Tailscale berhasil" -ForegroundColor Green
-          } catch {
-              Write-Host "│ ❌ Error install Tailscale" -ForegroundColor Red
-          }
+          Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi" -OutFile "$env:TEMP\tailscale.msi"
+          Start-Process msiexec.exe -ArgumentList "/i", "`"$env:TEMP\tailscale.msi`"", "/quiet", "/norestart" -Wait
+          Remove-Item "$env:TEMP\tailscale.msi" -Force
           
-          # Tunggu layanan mulai
           Start-Sleep -Seconds 10
           
-          # Gunakan hostname kustom dari input
-          $customHostname = "${{ github.event.inputs.custom_hostname }}"
-          if (-not $customHostname) {
-              $customHostname = "johan-rdp-permanent"
-          }
+          # Koneksi dengan hostname kustom
+          $hostname = "${{ github.event.inputs.custom_hostname }}"
+          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=$env:TAILSCALE_AUTH_KEY --hostname=$hostname --accept-routes --accept-dns --reset
           
-          Write-Host "│ 🌐 Menggunakan hostname: $customHostname" -ForegroundColor Cyan
-          
-          # Koneksi Tailscale dengan hostname KUSTOM dan tags
-          try {
-              & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=$env:TAILSCALE_AUTH_KEY --hostname=$customHostname --accept-routes --accept-dns --reset --advertise-tags=tag:johan-rdp
-              Write-Host "│ ✅ Koneksi Tailscale berhasil" -ForegroundColor Green
-              Write-Host "│ 🏷️  Hostname: $customHostname" -ForegroundColor Cyan
-              Write-Host "│ 🏷️  Tags: tag:johan-rdp" -ForegroundColor Cyan
-          } catch {
-              Write-Host "│ ❌ Error koneksi Tailscale" -ForegroundColor Red
-          }
-          
-          # Dapatkan IP dengan mekanisme retry lebih lama
-          Write-Host "🔄 Mendapatkan alamat IP konsisten..." -NoNewline -ForegroundColor Blue
+          # Dapatkan IP
           $ip = $null
-          for($i=0; $i -lt 30; $i++) {
-              try {
-                  $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4 2>&1
-                  if ($ip -and $ip -match '^\d+\.\d+\.\d+\.\d+$') {
-                      # Simpan IP untuk penggunaan konsisten
-                      echo "TAILSCALE_IP=$ip" >> $env:GITHUB_ENV
-                      echo "RDP_IP=$ip" >> $env:GITHUB_ENV
-                      echo "RDP_HOSTNAME=$customHostname" >> $env:GITHUB_ENV
-                      Write-Host "`r✅ Alamat IP: $ip" -ForegroundColor Green
-                      Write-Host "│ 🌐 MagicDNS: $customHostname.tailscale-up" -ForegroundColor Cyan
-                      break
-                  }
-              } catch {
-                  # Abaikan error dan coba lagi
+          for($i=0; $i -lt 20; $i++) {
+              $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4 2>&1
+              if ($ip -and $ip -match '^\d+\.\d+\.\d+\.\d+$') {
+                  echo "RDP_IP=$ip" >> $env:GITHUB_ENV
+                  break
               }
-              Write-Host "`r🔄 Mendapatkan alamat IP konsisten... $(@('.', '..', '...')[$i % 3])" -NoNewline -ForegroundColor Blue
               Start-Sleep -Seconds 3
           }
           
-          if (-not $ip -or $ip -notmatch '^\d+\.\d+\.\d+\.\d+$') {
-              Write-Host "`r⚠️  Tidak bisa dapat IP, gunakan MagicDNS" -ForegroundColor Yellow
-              $magicDNS = "$customHostname.tailscale-up"
-              echo "TAILSCALE_IP=$magicDNS" >> $env:GITHUB_ENV
+          if (-not $ip) {
+              $magicDNS = "$hostname.tailscale-up"
               echo "RDP_IP=$magicDNS" >> $env:GITHUB_ENV
-              echo "RDP_HOSTNAME=$customHostname" >> $env:GITHUB_ENV
-              Write-Host "🌐 MagicDNS: $magicDNS" -ForegroundColor Cyan
           }
+          
+          Write-Host "✅ Jaringan siap! IP: $env:RDP_IP" -ForegroundColor Green
 
-      # BUAT SHORTCUT DAN KONFIGURASI DESKTOP
-      - name: 🖥️ KONFIGURASI DESKTOP
+      # BUAT SHORTCUT DI DESKTOP
+      - name: 🖥️ SETUP DESKTOP
         run: |
           Write-Host ""
-          Write-Host "🖥️  MENGKONFIGURASI DESKTOP DAN SHORTCUT" -ForegroundColor Yellow
+          Write-Host "🖥️  SETUP SHORTCUT DESKTOP" -ForegroundColor Yellow
           
-          # Path desktop user
           $desktopPath = "C:\Users\JOHAN-RDP\Desktop"
-          $publicDesktopPath = "C:\Users\Public\Desktop"
+          New-Item -ItemType Directory -Path $desktopPath -Force
           
-          # Buat folder desktop jika belum ada
-          New-Item -ItemType Directory -Path $desktopPath -Force -ErrorAction SilentlyContinue
-          
-          # Buat shortcut untuk aplikasi umum
-          $shortcuts = @(
-              @{
-                  Name = "Telegram.lnk"
-                  Target = "$env:APPDATA\Telegram Desktop\Telegram.exe"
-              },
-              @{
-                  Name = "Chrome.lnk"
-                  Target = "$env:PROGRAMFILES\Google\Chrome\Application\chrome.exe"
-              },
-              @{
-                  Name = "VS Code.lnk"
-                  Target = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Visual Studio Code\Visual Studio Code.lnk"
-              },
-              @{
-                  Name = "Firefox.lnk"
-                  Target = "$env:PROGRAMFILES\Mozilla Firefox\firefox.exe"
-              },
-              @{
-                  Name = "Node.js Command Prompt.lnk"
-                  Target = "cmd.exe"
-                  Arguments = "/k `"$env:PROGRAMFILES\nodejs\nodevars.bat`""
-              }
-          )
-          
-          foreach ($shortcut in $shortcuts) {
-              try {
-                  $shortcutPath = "$desktopPath\$($shortcut.Name)"
-                  $WshShell = New-Object -comObject WScript.Shell
-                  $Shortcut = $WshShell.CreateShortcut($shortcutPath)
-                  $Shortcut.TargetPath = $shortcut.Target
-                  if ($shortcut.Arguments) {
-                      $Shortcut.Arguments = $shortcut.Arguments
-                  }
-                  $Shortcut.Save()
-                  
-                  # Juga buat di public desktop
-                  $publicShortcutPath = "$publicDesktopPath\$($shortcut.Name)"
-                  $PublicShortcut = $WshShell.CreateShortcut($publicShortcutPath)
-                  $PublicShortcut.TargetPath = $shortcut.Target
-                  if ($shortcut.Arguments) {
-                      $PublicShortcut.Arguments = $shortcut.Arguments
-                  }
-                  $PublicShortcut.Save()
-                  
-                  Write-Host "│ ✅ Buat shortcut: $($shortcut.Name)" -ForegroundColor Green
-              } catch {
-                  Write-Host "│ ⚠️  Gagal buat shortcut: $($shortcut.Name)" -ForegroundColor Yellow
-              }
-          }
-          
-          # Buat file info koneksi di desktop
-          $connectionInfo = @"
-🎯 JOHAN RDP PREMIUM PERSISTENT
---------------------------------
-🌐 IP/Hostname: $env:RDP_IP
-👤 Username: JOHAN-RDP  
-🔐 Password: Shion@1234
-📍 Port: 3389
-🖥️ Hostname: $env:RDP_HOSTNAME
---------------------------------
-💡 Simpan informasi ini untuk
-   koneksi berikutnya!
+          # Buat file info koneksi
+          $info = @"
+🎯 JOHAN RDP PREMIUM
+====================
+IP: $env:RDP_IP
+User: JOHAN-RDP
+Pass: Shion@1234
+Port: 3389
 "@
+          $info | Out-File "$desktopPath\INFO_RDP.txt" -Encoding UTF8
           
-          $infoPath = "$desktopPath\INFO_KONEKSI.txt"
-          $connectionInfo | Out-File -FilePath $infoPath -Encoding UTF8
-          
-          Write-Host "│ ✅ Buat file info koneksi" -ForegroundColor Green
-          Write-Host "🎯 Konfigurasi desktop selesai!" -ForegroundColor Green
+          Write-Host "✅ Setup desktop selesai!" -ForegroundColor Green
 
-      # TAMPILKAN INFORMASI KONEKSI LENGKAP
-      - name: 🎉 INFORMASI KONEKSI PERSISTENT
+      # TAMPILKAN INFO KONEKSI
+      - name: 🎉 INFO KONEKSI
         run: |
-          # Konversi waktu dari input ke menit
-          $durationInput = "${{ github.event.inputs.duration }}"
-          switch ($durationInput) {
-              "1h" { $totalMinutes = 60; $displayTime = "1 jam" }
-              "3h" { $totalMinutes = 180; $displayTime = "3 jam" }
-              "5h40m" { $totalMinutes = 340; $displayTime = "5 jam 40 menit" }
+          Write-Host ""
+          Write-Host "┌─────────────────────────────────────────┐" -ForegroundColor Cyan
+          Write-Host "│           🎉 RDP SIAP DIGUNAKAN!       │" -ForegroundColor Cyan
+          Write-Host "├─────────────────────────────────────────┤" -ForegroundColor Cyan
+          Write-Host "│ 🌐 IP: $env:RDP_IP" -ForegroundColor White
+          Write-Host "│ 👤 User: JOHAN-RDP" -ForegroundColor White
+          Write-Host "│ 🔐 Pass: Shion@1234" -ForegroundColor White
+          Write-Host "│ 📍 Port: 3389" -ForegroundColor White
+          Write-Host "│ ⏰ Waktu: ${{ github.event.inputs.duration }}" -ForegroundColor White
+          Write-Host "│ 📦 Apps: ${{ github.event.inputs.install_apps }}" -ForegroundColor White
+          Write-Host "├─────────────────────────────────────────┤" -ForegroundColor Cyan
+          Write-Host "│ 💡 Catat informasi di atas!            │" -ForegroundColor Yellow
+          Write-Host "│    Untuk reconnect, jalankan workflow  │" -ForegroundColor Yellow
+          Write-Host "│    lagi dengan credential yang sama    │" -ForegroundColor Yellow
+          Write-Host "└─────────────────────────────────────────┘" -ForegroundColor Cyan
+
+      # JAGA SESI BERJALAN
+      - name: ⏳ JAGA SESI AKTIF
+        run: |
+          $duration = "${{ github.event.inputs.duration }}"
+          switch ($duration) {
+              "1h" { $minutes = 60 }
+              "3h" { $minutes = 180 }
+              "5h40m" { $minutes = 340 }
           }
           
-          # Hitung waktu tepat
-          $timeZone = [System.TimeZoneInfo]::FindSystemTimeZoneById("SE Asia Standard Time")
-          $waktuMulai = [System.TimeZoneInfo]::ConvertTimeFromUtc((Get-Date).ToUniversalTime(), $timeZone)
-          $waktuSelesai = $waktuMulai.AddMinutes($totalMinutes)
-          
-          $appsList = "${{ github.event.inputs.install_apps }}"
-          $hostname = "${{ github.event.inputs.custom_hostname }}"
-          
           Write-Host ""
-          Write-Host "┌───────────────────────────────────────────┐" -ForegroundColor Cyan
-          Write-Host "│        🎉 KONEKSI PERSISTENT BERHASIL!    │" -ForegroundColor Cyan
-          Write-Host "├───────────────────────────────────────────┤" -ForegroundColor Cyan
-          Write-Host "│ 🌐  Alamat: $env:RDP_IP" -ForegroundColor White
-          Write-Host "│ 🖥️  Hostname: $hostname" -ForegroundColor White
-          Write-Host "│ 👤  Username: JOHAN-RDP" -ForegroundColor White
-          Write-Host "│ 🔐  Password: Shion@1234" -ForegroundColor White
-          Write-Host "│ ⏰  Durasi: $displayTime" -ForegroundColor White
-          Write-Host "│ 📦  Aplikasi: $appsList" -ForegroundColor White
-          Write-Host "│ 🕐  Mulai: $($waktuMulai.ToString('HH:mm:ss'))" -ForegroundColor White
-          Write-Host "│ 🕐  Selesai: $($waktuSelesai.ToString('HH:mm:ss'))" -ForegroundColor White
-          Write-Host "│ 📍  Port: 3389" -ForegroundColor White
-          Write-Host "├───────────────────────────────────────────┤" -ForegroundColor Cyan
-          Write-Host "│ 💡  KEUNGGULAN PERSISTENT:                │" -ForegroundColor Cyan
-          Write-Host "│   • IP & Hostname konsisten              │" -ForegroundColor Yellow
-          Write-Host "│   • Aplikasi terinstall otomatis         │" -ForegroundColor Yellow
-          Write-Host "│   • Shortcut siap pakai                  │" -ForegroundColor Yellow
-          Write-Host "│   • Bisa reconnect kapan saja            │" -ForegroundColor Yellow
-          Write-Host "└───────────────────────────────────────────┘" -ForegroundColor Cyan
-          Write-Host ""
-          Write-Host "🔧 **CUSTOMIZATION:**" -ForegroundColor Magenta
-          Write-Host "   • Ganti 'install_apps' untuk aplikasi berbeda" -ForegroundColor White
-          Write-Host "   • Ganti 'custom_hostname' untuk hostname beda" -ForegroundColor White
-          Write-Host "   • Username & Password tetap sama" -ForegroundColor White
+          Write-Host "⏳ Menjaga sesi aktif selama $minutes menit..." -ForegroundColor Yellow
           
-          # Simpan waktu ke environment variable
-          echo "TOTAL_MINUTES=$totalMinutes" >> $env:GITHUB_ENV
-
-      # PERTAHANKAN SESI STABIL
-      - name: ⏳ PERTAHANKAN SESI KERJA
-        run: |
-          $totalMinutes = $env:TOTAL_MINUTES
-          $hostname = "${{ github.event.inputs.custom_hostname }}"
-          
-          # Hitung waktu tepat
-          $timeZone = [System.TimeZoneInfo]::FindSystemTimeZoneById("SE Asia Standard Time")
-          $waktuMulai = [System.TimeZoneInfo]::ConvertTimeFromUtc((Get-Date).ToUniversalTime(), $timeZone)
-          $waktuSelesai = $waktuMulai.AddMinutes($totalMinutes)
-          
-          Write-Host ""
-          Write-Host "🔄 MEMULAI PERTAHANAN SESI PERSISTENT..." -ForegroundColor Yellow
-          Write-Host "💎 Sesi: JOHAN RDP PERSISTENT" -ForegroundColor Magenta
-          Write-Host "🔗 Koneksi: $env:RDP_IP" -ForegroundColor Cyan
-          Write-Host "🏷️  Hostname: $hostname" -ForegroundColor Cyan
-          Write-Host "👤 Username: JOHAN-RDP" -ForegroundColor Cyan
-          Write-Host "🔐 Password: Shion@1234" -ForegroundColor Cyan
-          Write-Host "📦 Aplikasi: ${{ github.event.inputs.install_apps }}" -ForegroundColor Cyan
-          Write-Host "🕐 Mulai: $($waktuMulai.ToString('HH:mm:ss'))" -ForegroundColor Green
-          Write-Host "🕐 Selesai: $($waktuSelesai.ToString('HH:mm:ss'))" -ForegroundColor Green
-          Write-Host ""
-          
-          # Monitor dan timer (sama seperti sebelumnya)
-          # ... [kode monitor sama seperti sebelumnya]
-
-      # PEMBERSIHAN TANPA HAPUS APLIKASI
-      - name: 🧹 BERSIHKAN SISTEM
-        if: always()
-        run: |
-          Write-Host ""
-          Write-Host "🧹 MEMBERSIHKAN SISTEM (TANPA HAPUS APLIKASI)..." -ForegroundColor Yellow
-          
-          $cleanupSteps = @(
-              @{Name="Tutup koneksi jaringan"; Script={
-                  & "$env:ProgramFiles\Tailscale\tailscale.exe" down --accept-risk=all -ErrorAction SilentlyContinue
-                  Start-Sleep -Seconds 5
-              }},
-              @{Name="Nonaktifkan RDP sementara"; Script={
-                  Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 1 -Force -ErrorAction SilentlyContinue
-                  Stop-Service -Name TermService -Force -ErrorAction SilentlyContinue
-              }}
-          )
-          
-          foreach($step in $cleanupSteps) {
-              Write-Host "│ 🗑️  $($step.Name)..." -NoNewline -ForegroundColor Gray
-              try {
-                  & $step.Script
-                  Write-Host "`r│ ✅ $($step.Name)" -ForegroundColor Green
-              } catch {
-                  Write-Host "`r│ ⚠️  $($step.Name) - Ditangani dengan aman" -ForegroundColor Yellow
-              }
-              Start-Sleep -Milliseconds 300
+          $endTime = (Get-Date).AddMinutes($minutes)
+          while ((Get-Date) -lt $endTime) {
+              $remaining = $endTime - (Get-Date)
+              $hours = [math]::Floor($remaining.TotalHours)
+              $mins = [math]::Floor($remaining.TotalMinutes % 60)
+              $secs = [math]::Floor($remaining.TotalSeconds % 60)
+              
+              Write-Host "⏱️  Waktu tersisa: $hours jam $mins menit $secs detik" -ForegroundColor Blue
+              Start-Sleep -Seconds 30
           }
           
-          Write-Host "│ 💾 User & Aplikasi disimpan untuk sesi berikutnya" -ForegroundColor Green
-          
-          Write-Host ""
-          Write-Host "🎉 Sesi selesai! Untuk reconnect:" -ForegroundColor Green
-          Write-Host "💡 Jalankan workflow lagi dengan:" -ForegroundColor Magenta
-          Write-Host "   • Hostname: ${{ github.event.inputs.custom_hostname }}" -ForegroundColor White
-          Write-Host "   • Username: JOHAN-RDP" -ForegroundColor White
-          Write-Host "   • Password: Shion@1234" -ForegroundColor White
-          Write-Host "   • IP akan sama/konsisten" -ForegroundColor White
+          Write-Host "✅ Waktu habis! Sesi selesai." -ForegroundColor Green
